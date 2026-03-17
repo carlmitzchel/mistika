@@ -38,7 +38,7 @@ export async function GET(
   }
 
   const shares = computeShares({
-    items: billItems.map((i) => ({ ...i, assignedTo: i.assignedTo as string[] })),
+    items: billItems.map((i) => ({ ...i, assignedTo: i.assignedTo as string[], source: i.source as 'manual' | 'scan' })),
     participants: billParticipants.map((p) => ({
       ...p,
       discountType: p.discountType as 'pwd' | 'senior' | null,
