@@ -1,40 +1,8 @@
 import Link from 'next/link'
-
-const mockBills = [
-  {
-    slug: 'abc-123',
-    title: 'Dinner at Manam 🍖',
-    restaurantName: 'Manam',
-    currency: 'PHP',
-    status: 'settling',
-    totalAmount: 240000,
-    participantCount: 5,
-    settledCount: 3,
-    createdAt: '2026-03-15',
-  },
-  {
-    slug: 'def-456',
-    title: 'Inihaw Night 🔥',
-    restaurantName: null,
-    currency: 'PHP',
-    status: 'settled',
-    totalAmount: 180000,
-    participantCount: 4,
-    settledCount: 4,
-    createdAt: '2026-03-10',
-  },
-  {
-    slug: 'ghi-789',
-    title: 'Family Sunday Lunch 🥘',
-    restaurantName: "Gerry's Grill",
-    currency: 'PHP',
-    status: 'open',
-    totalAmount: 560000,
-    participantCount: 8,
-    settledCount: 0,
-    createdAt: '2026-03-17',
-  },
-]
+import { auth } from '@clerk/nextjs/server'
+import { db } from '@/db'
+import { bills, participants, items, payments } from '@/db/schema'
+import { eq, inArray } from 'drizzle-orm'
 
 function fmt(centavos: number): string {
   return '₱' + (centavos / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
@@ -49,8 +17,20 @@ function StatusBadge({ status }: { status: string }) {
 
 const rotations = ['rotate-[-0.5deg]', 'rotate-[0.5deg]']
 
-export default function DashboardPage() {
-  if (mockBills.length === 0) {
+export default async function DashboardPage() {
+  const { userId } = await auth()
+  if (!userId) return null // proxy.ts handles redirect
+
+  // Fetch organizer's bills (exclude archived)
+  const userBills = await db
+    .select()
+    .from(bills)
+    .where(eq(bills.organizerId, userId))
+    .orderBy(bills.createdAt)
+
+  const activeBills = userBills.filter((b) => b.status !== 'archived')
+
+  if (activeBills.length === 0) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 flex flex-col items-center gap-4 text-center">
         <span className="text-7xl">🍽️</span>
@@ -68,6 +48,32 @@ export default function DashboardPage() {
     )
   }
 
+  // Batch-fetch participants, items, and confirmed payments for all bills
+  const billIds = activeBills.map((b) => b.id)
+
+  const [allParticipants, allItems, allPayments] = await Promise.all([
+    db.select().from(participants).where(inArray(participants.billId, billIds)),
+    db.select().from(items).where(inArray(items.billId, billIds)),
+    db.select().from(payments).where(inArray(payments.billId, billIds)),
+  ])
+
+  // Aggregate per bill
+  const billSummaries = activeBills.map((bill) => {
+    const billParticipants = allParticipants.filter((p) => p.billId === bill.id)
+    const billItems = allItems.filter((i) => i.billId === bill.id)
+    const billPayments = allPayments.filter((p) => p.billId === bill.id)
+
+    const totalAmount = billItems.reduce((sum, i) => sum + i.price, 0)
+    const participantCount = billParticipants.length
+    const settledCount = billParticipants.filter((p) =>
+      billPayments.some(
+        (pay) => pay.fromParticipantId === p.id && pay.status === 'confirmed',
+      ),
+    ).length
+
+    return { ...bill, totalAmount, participantCount, settledCount }
+  })
+
   return (
     <div className="max-w-lg mx-auto px-4 py-6">
       <div className="flex items-center justify-between mb-6">
@@ -83,7 +89,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="flex flex-col gap-4">
-        {mockBills.map((bill, i) => {
+        {billSummaries.map((bill, i) => {
           const progressPct =
             bill.participantCount > 0
               ? Math.round((bill.settledCount / bill.participantCount) * 100)
@@ -109,7 +115,7 @@ export default function DashboardPage() {
                 {bill.restaurantName && (
                   <span>📍 {bill.restaurantName}</span>
                 )}
-                <span>{bill.createdAt}</span>
+                <span>{bill.createdAt.toLocaleDateString()}</span>
                 <span className="font-semibold text-[#1C1C1C]">{bill.currency}</span>
               </div>
 

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/db'
 import { bills } from '@/db/schema'
 import { ok, err, id, slug, requireAuth } from '@/lib/api'
+import { ensureUser } from '@/lib/ensure-user'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
 
@@ -37,6 +38,8 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return err(parsed.error.message)
 
   const { title, restaurantName, currency, defaultSplitMethod, vatRegistered } = parsed.data
+
+  await ensureUser(userId)
 
   const billSlug = slug()
   const [bill] = await db

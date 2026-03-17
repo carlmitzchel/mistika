@@ -19,6 +19,19 @@ const PaymentBodySchema = z.object({
   method: z.enum(['gcash', 'maya', 'bank', 'cash']),
 })
 
+// GET /api/bills/:slug/payments — list all payments for a bill
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ slug: string }> },
+) {
+  const { slug } = await params
+  const [bill] = await db.select().from(bills).where(eq(bills.slug, slug))
+  if (!bill) return err('Bill not found', 404)
+
+  const rows = await db.select().from(payments).where(eq(payments.billId, bill.id))
+  return ok(rows)
+}
+
 // POST /api/bills/:slug/payments (multipart/form-data)
 // Fields: fromParticipantId, toParticipantId, amount, method, proofImage? (file)
 export async function POST(

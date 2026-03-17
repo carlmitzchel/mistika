@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import type { ChangeEvent, FormEvent } from 'react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -500,22 +501,35 @@ function StepReview({
   billData,
   participants,
   items,
+  paymentMethods,
+  saving,
+  billSlug,
+  onSave,
 }: {
   billData: BillData
   participants: Participant[]
   items: Item[]
+  paymentMethods: PaymentMethod[]
+  saving: boolean
+  billSlug: string | null
+  onSave: () => void
 }) {
   const [copied, setCopied] = useState(false)
   const totalCentavos = items.reduce((sum, item) => sum + item.price, 0)
   const perPersonCentavos =
     participants.length > 0 ? Math.round(totalCentavos / participants.length) : 0
 
-  const fakeUrl = `https://mistika.app/bills/new-bill-${Date.now()}`
+  const shareUrl = billSlug
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/bills/${billSlug}`
+    : null
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(fakeUrl).then(() => {
-      setCopied(true)
-    })
+    if (shareUrl) {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      })
+    }
   }
 
   return (
@@ -565,34 +579,44 @@ function StepReview({
         </div>
       )}
 
-      {/* Share link */}
-      <div className="doodle-card p-4 rotate-[-0.3deg]">
-        <h3
-          className="text-lg font-bold mb-3"
-          style={{ fontFamily: 'var(--font-caveat)' }}
+      {/* Save or share */}
+      {!billSlug ? (
+        <button
+          onClick={onSave}
+          disabled={saving}
+          className="btn-doodle btn-coral w-full mt-2"
         >
-          🔗 Share with participants
-        </h3>
-        <div className="flex gap-2 mb-3">
-          <input
-            className="input-doodle flex-1 text-sm"
-            value={fakeUrl}
-            readOnly
-            style={{ fontSize: '0.8rem' }}
-          />
-          <button
-            type="button"
-            onClick={handleCopy}
-            className="btn-doodle btn-coral whitespace-nowrap"
-            style={{ fontSize: '0.85rem', padding: '0.5rem 0.9rem' }}
+          {saving ? 'Creating...' : 'Create Bill ✨'}
+        </button>
+      ) : (
+        <div className="doodle-card p-4 rotate-[-0.3deg]">
+          <h3
+            className="text-lg font-bold mb-3"
+            style={{ fontFamily: 'var(--font-caveat)' }}
           >
-            {copied ? '✅ Done!' : '📋 Copy'}
-          </button>
+            🔗 Share with participants
+          </h3>
+          <div className="flex gap-2 mb-3">
+            <input
+              className="input-doodle flex-1 text-sm"
+              value={shareUrl ?? ''}
+              readOnly
+              style={{ fontSize: '0.8rem' }}
+            />
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="btn-doodle btn-coral whitespace-nowrap"
+              style={{ fontSize: '0.85rem', padding: '0.5rem 0.9rem' }}
+            >
+              {copied ? '✅ Done!' : '📋 Copy'}
+            </button>
+          </div>
+          {copied && (
+            <p className="text-sm font-bold text-[#6BCB77]">✅ Link copied to clipboard!</p>
+          )}
         </div>
-        {copied && (
-          <p className="text-sm font-bold text-[#6BCB77]">✅ Link copied to clipboard!</p>
-        )}
-      </div>
+      )}
     </div>
   )
 }
@@ -600,7 +624,10 @@ function StepReview({
 // ─── Main wizard component ────────────────────────────────────────────────────
 
 export default function NewBillPage() {
+  const router = useRouter()
   const [step, setStep] = useState(0)
+  const [saving, setSaving] = useState(false)
+  const [billSlug, setBillSlug] = useState<string | null>(null)
   const [billData, setBillData] = useState<BillData>({
     title: '',
     restaurantName: '',
@@ -654,13 +681,84 @@ export default function NewBillPage() {
     setPaymentMethods((prev) => [...prev, m])
   }
 
-  const stepTitles = [
-    'Bill details',
-    'Add people',
-    'Add items',
-    'Payment info',
-    'Review & share',
-  ]
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      // 1. Create the bill
+      const billRes = await fetch('/api/bills', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: billData.title,
+          restaurantName: billData.restaurantName || undefined,
+          currency: billData.currency,
+          defaultSplitMethod: billData.splitMethod === 'byitem' ? 'item' : 'equal',
+          vatRegistered: billData.vatRegistered,
+        }),
+      })
+      if (!billRes.ok) throw new Error('Failed to create bill')
+      const bill = await billRes.json()
+      const slug = bill.slug
+
+      // 2. Add participants in parallel
+      const participantMap: Record<string, string> = {} // local id → server id
+      await Promise.all(
+        participants.map(async (p) => {
+          const res = await fetch(`/api/bills/${slug}/participants`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              displayName: p.name,
+              discountType: p.discountType,
+            }),
+          })
+          if (res.ok) {
+            const created = await res.json()
+            participantMap[p.id] = created.id
+          }
+        })
+      )
+
+      // 3. Add items in parallel (remap assignedTo to server participant IDs)
+      await Promise.all(
+        items.map(async (item) => {
+          const assignedTo = item.assignedTo
+            .map((localId) => participantMap[localId])
+            .filter(Boolean)
+          await fetch(`/api/bills/${slug}/items`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: item.name,
+              price: item.price,
+              assignedTo,
+            }),
+          })
+        })
+      )
+
+      // 4. Add payment methods in parallel
+      await Promise.all(
+        paymentMethods.map(async (m) => {
+          const formData = new FormData()
+          formData.append('type', m.type)
+          formData.append('label', m.label)
+          formData.append('accountDetails', m.accountDetails)
+          await fetch(`/api/bills/${slug}/payment-methods`, {
+            method: 'POST',
+            body: formData,
+          })
+        })
+      )
+
+      setBillSlug(slug)
+    } catch (e) {
+      console.error('Failed to create bill:', e)
+      alert('Something went wrong creating the bill. Please try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="max-w-lg mx-auto px-4 py-6">
@@ -712,16 +810,29 @@ export default function NewBillPage() {
             billData={billData}
             participants={participants}
             items={items}
+            paymentMethods={paymentMethods}
+            saving={saving}
+            billSlug={billSlug}
+            onSave={handleSave}
           />
         )}
       </div>
 
-      {step > 0 && (
+      {step > 0 && !billSlug && (
         <button
           onClick={() => setStep((s) => s - 1)}
           className="btn-doodle btn-ghost w-full mt-3 text-sm"
         >
           ← Back
+        </button>
+      )}
+
+      {billSlug && (
+        <button
+          onClick={() => router.push(`/dashboard/bills/${billSlug}`)}
+          className="btn-doodle btn-mint w-full mt-3 text-sm"
+        >
+          Go to bill →
         </button>
       )}
     </div>

@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { UserButton } from '@clerk/nextjs'
 
 const links = [
   { href: '/dashboard', label: '🧾 Bills' },
@@ -35,6 +36,9 @@ export default function Nav() {
               {l.label}
             </Link>
           ))}
+          <div className="ml-2">
+            <UserButton />
+          </div>
         </div>
       </div>
     </nav>
