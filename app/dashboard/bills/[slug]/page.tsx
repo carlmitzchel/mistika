@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import QRCode from "react-qr-code";
 
 interface Bill {
   id: string;
@@ -82,6 +83,7 @@ export default function BillDetailPage() {
   const [paymentIds, setPaymentIds] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -244,13 +246,51 @@ export default function BillDetailPage() {
         {bill.restaurantName && <span>📍 {bill.restaurantName}</span>}
         <StatusBadge status={bill.status} />
         <button
-          onClick={handleCopyLink}
+          onClick={() => setShowShare(!showShare)}
           className="btn-doodle btn-ghost text-xs px-3 py-1 ml-auto"
           style={{ fontSize: "0.8rem", padding: "0.3rem 0.8rem" }}
         >
-          {copied ? "✅ Copied!" : "🔗 Share link"}
+          {showShare ? "❌ Close" : "🔗 Share link"}
         </button>
       </div>
+
+      {showShare && (
+        <div className="doodle-card p-4 mb-4 rotate-[0.3deg]">
+          <h3
+            className="text-lg font-bold mb-3"
+            style={{ fontFamily: "var(--font-caveat)" }}
+          >
+            Share Link or QR Code
+          </h3>
+          <div className="flex justify-center mb-4">
+            <div className="bg-white p-3 rounded-xl border-2 border-[#1C1C1C] inline-block shadow-sm">
+              <QRCode
+                value={`${
+                  typeof window !== "undefined" ? window.location.origin : ""
+                }/bills/${slug}`}
+                size={160}
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <input
+              className="input-doodle flex-1 text-sm bg-white"
+              value={`${
+                typeof window !== "undefined" ? window.location.origin : ""
+              }/bills/${slug}`}
+              readOnly
+              style={{ fontSize: "0.8rem" }}
+            />
+            <button
+              onClick={handleCopyLink}
+              className="btn-doodle btn-coral whitespace-nowrap"
+              style={{ fontSize: "0.85rem", padding: "0.5rem 0.9rem" }}
+            >
+              {copied ? "✅ Done!" : "📋 Copy"}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Participants section */}
       <h2
