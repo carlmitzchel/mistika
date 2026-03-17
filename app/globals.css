@@ -1,26 +1,200 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --color-cream: #FFFBF5;
+  --color-ink: #1C1C1C;
+  --color-coral: #FF6B6B;
+  --color-coral-dark: #E85555;
+  --color-yellow: #FFD93D;
+  --color-mint: #6BCB77;
+  --color-lavender: #C4B5FD;
+  --color-sky: #7DD3FC;
+  --color-peach: #FFAB76;
+  --color-card: #FFFFFF;
+
+  --font-caveat: var(--font-caveat);
+  --font-nunito: var(--font-nunito);
+  --font-sans: var(--font-nunito);
+
+  --radius-doodle: 1.25rem;
+  --shadow-doodle: 4px 4px 0px #1C1C1C;
+  --shadow-doodle-sm: 2px 2px 0px #1C1C1C;
+  --shadow-doodle-lg: 6px 6px 0px #1C1C1C;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+* {
+  box-sizing: border-box;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: #FFFBF5;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #FFFBF5;
+  color: #1C1C1C;
+  font-family: var(--font-nunito), 'Nunito', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Doodle card ─────────────────────────────────── */
+.doodle-card {
+  background: #FFFFFF;
+  border: 2.5px solid #1C1C1C;
+  border-radius: 1.25rem;
+  box-shadow: 4px 4px 0px #1C1C1C;
+}
+
+.doodle-card-sm {
+  background: #FFFFFF;
+  border: 2px solid #1C1C1C;
+  border-radius: 1rem;
+  box-shadow: 3px 3px 0px #1C1C1C;
+}
+
+/* ── Doodle button ───────────────────────────────── */
+.btn-doodle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-family: var(--font-nunito), sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  padding: 0.6rem 1.4rem;
+  border: 2.5px solid #1C1C1C;
+  border-radius: 999px;
+  box-shadow: 3px 3px 0px #1C1C1C;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.btn-doodle:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0px #1C1C1C;
+}
+
+.btn-coral   { background: #FF6B6B; color: #fff; }
+.btn-yellow  { background: #FFD93D; color: #1C1C1C; }
+.btn-mint    { background: #6BCB77; color: #fff; }
+.btn-ghost   { background: #FFFBF5; color: #1C1C1C; }
+.btn-ink     { background: #1C1C1C; color: #fff; }
+
+.btn-doodle:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── Doodle input ────────────────────────────────── */
+.input-doodle {
+  width: 100%;
+  font-family: var(--font-nunito), sans-serif;
+  font-weight: 600;
+  font-size: 1rem;
+  padding: 0.6rem 1rem;
+  background: #FFFBF5;
+  border: 2px solid #1C1C1C;
+  border-radius: 0.875rem;
+  outline: none;
+  transition: box-shadow 0.15s;
+  color: #1C1C1C;
+}
+
+.input-doodle:focus {
+  box-shadow: 3px 3px 0px #1C1C1C;
+}
+
+.input-doodle::placeholder {
+  color: #9CA3AF;
+  font-weight: 500;
+}
+
+/* ── Status badges ───────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.65rem;
+  border: 2px solid #1C1C1C;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badge-pending  { background: #FFD93D; }
+.badge-proof    { background: #7DD3FC; }
+.badge-settled  { background: #6BCB77; color: #fff; }
+.badge-rejected { background: #FF6B6B; color: #fff; }
+.badge-open     { background: #FFFBF5; }
+.badge-archived { background: #E5E7EB; }
+
+/* ── Step indicator ──────────────────────────────── */
+.step-dot {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 999px;
+  border: 2px solid #1C1C1C;
+  background: #FFFBF5;
+  transition: background 0.2s, width 0.2s;
+}
+.step-dot.active {
+  background: #FF6B6B;
+  width: 2rem;
+}
+.step-dot.done {
+  background: #6BCB77;
+}
+
+/* ── Doodle divider ──────────────────────────────── */
+.doodle-divider {
+  border: none;
+  border-top: 2px dashed #D1D5DB;
+  margin: 1rem 0;
+}
+
+/* ── Wobble animation for hero emoji ────────────── */
+@keyframes wobble {
+  0%, 100% { transform: rotate(-4deg) scale(1); }
+  50%       { transform: rotate(4deg) scale(1.05); }
+}
+
+.wobble {
+  display: inline-block;
+  animation: wobble 2.5s ease-in-out infinite;
+}
+
+/* ── Float animation ─────────────────────────────── */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+
+.float { animation: float 3s ease-in-out infinite; }
+
+/* ── Slide-up entrance ───────────────────────────── */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.slide-up { animation: slideUp 0.35s ease forwards; }
+
+/* ── Progress bar ────────────────────────────────── */
+.progress-track {
+  height: 10px;
+  background: #E5E7EB;
+  border: 2px solid #1C1C1C;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: #6BCB77;
+  border-radius: 999px;
+  transition: width 0.4s ease;
 }
