@@ -23,6 +23,7 @@ interface Item {
   name: string;
   price: number; // centavos
   assignedTo: string[]; // participant ids
+  discountEligible?: boolean;
 }
 
 interface PaymentMethod {
@@ -38,6 +39,8 @@ interface BillData {
   currency: Currency;
   splitMethod: SplitMethod;
   vatRegistered: boolean;
+  customTaxName?: string;
+  customTaxAmount?: string;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -145,6 +148,34 @@ function StepBillDetails({
           >
             Non-VAT 🚫
           </button>
+        </div>
+      </div>
+
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="block text-sm font-bold mb-1 text-gray-700">
+            Custom Tax Name
+          </label>
+          <input
+            className="input-doodle"
+            placeholder="e.g. Service Charge"
+            value={data.customTaxName ?? ""}
+            onChange={(e) => onChange({ customTaxName: e.target.value })}
+          />
+        </div>
+        <div className="w-32">
+          <label className="block text-sm font-bold mb-1 text-gray-700">
+            Amount
+          </label>
+          <input
+            className="input-doodle w-full"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+            value={data.customTaxAmount ?? ""}
+            onChange={(e) => onChange({ customTaxAmount: e.target.value })}
+          />
         </div>
       </div>
 
@@ -547,7 +578,11 @@ function StepReview({
   onSave: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const totalCentavos = items.reduce((sum, item) => sum + item.price, 0);
+  const taxAmountCentavos = Math.round(
+    Number(billData.customTaxAmount || 0) * 100,
+  );
+  const totalCentavos =
+    items.reduce((sum, item) => sum + item.price, 0) + taxAmountCentavos;
   const perPersonCentavos =
     participants.length > 0
       ? Math.round(totalCentavos / participants.length)
@@ -587,6 +622,7 @@ function StepReview({
           <span>👥 {participants.length} people</span>
           <span>🛒 {items.length} items</span>
           <span>{billData.currency}</span>
+          {taxAmountCentavos > 0 && <span>💸 +Tax/Fee</span>}
         </div>
         <div
           className="text-3xl font-bold"
@@ -684,6 +720,8 @@ export default function NewBillPage() {
     currency: "PHP",
     splitMethod: "equal",
     vatRegistered: true,
+    customTaxName: "",
+    customTaxAmount: "",
   });
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [items, setItems] = useState<Item[]>([]);
@@ -775,9 +813,21 @@ export default function NewBillPage() {
         }),
       );
 
-      // 3. Add items in parallel (remap assignedTo to server participant IDs)
+      // 3. Add items + optional tax in parallel
+      const taxAmountNum = Number(billData.customTaxAmount);
+      const itemsToCreate = [...items];
+      if (taxAmountNum > 0) {
+        itemsToCreate.push({
+          id: uid(),
+          name: billData.customTaxName?.trim() || "Service Charge",
+          price: Math.round(taxAmountNum * 100),
+          assignedTo: [],
+          discountEligible: false,
+        });
+      }
+
       await Promise.all(
-        items.map(async (item) => {
+        itemsToCreate.map(async (item) => {
           const assignedTo = item.assignedTo
             .map((localId) => participantMap[localId])
             .filter(Boolean);
@@ -788,6 +838,7 @@ export default function NewBillPage() {
               name: item.name,
               price: item.price,
               assignedTo,
+              discountEligible: item.discountEligible !== false,
             }),
           });
         }),
